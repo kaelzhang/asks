@@ -15,7 +15,9 @@
     "tty",
     "asks",
     "prompt",
-    "read"
+    "read",
+    "readline",
+    "cli"
   ],
   "author": "kael",
   "license": "MIT",
