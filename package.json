@@ -1,0 +1,25 @@
+{
+  "name": "asks",
+  "version": "0.1.0",
+  "description": "Asks is a wrapper for node.js stdin.",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/kaelzhang/asks.git"
+  },
+  "keywords": [
+    "stdin",
+    "tty",
+    "asks",
+    "prompt",
+    "read"
+  ],
+  "author": "kael",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kaelzhang/asks/issues"
+  }
+}
