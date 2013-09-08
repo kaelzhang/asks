@@ -93,9 +93,10 @@ var TYPES = {
 // - context: `Object` the context of the helper functions
 // - 
 function Asks(options){
-    this.options = mix(options || {}, DEFAULT_OPTIONS, false);
+    this.options = options = mix(options || {}, DEFAULT_OPTIONS, false);
     this._types = {};
-    this._context = options.context;
+    this._context = options.context || this;
+    this.logger = options.logger || typo();
 };
 
 node_util.inherits(Asks, EE);
@@ -161,7 +162,7 @@ Asks.prototype.get = function(schema, callback) {
             var rule = schema[key];
 
             return function(done) {
-                self._get(rule, retry, done);
+                self._get(rule, rule.retry, done);
             };
         }),
 
@@ -192,7 +193,7 @@ Asks.prototype.parseSchema = function(schema) {
     var name;
 
     for(name in schema){
-        parsed[name] = this._parseRule(schema[name]);
+        parsed[name] = this._parseRule(name, schema[name]); console.log(parsed[name])
     }
 
     // parse each rule and cache it
@@ -235,41 +236,64 @@ Asks.prototype._get = function(rule, retry, callback) {
             }
         }
 
-        async.series(
-            rule.validator.map(function (validator) {
-                return function (done) {
-                    validator.call(self._context, result, is_default, done);
-                };
-            }),
+        self._validate(result, rule, function (err) {
+            if ( err ) {
+                return self._retry(rule, retry, callback);
+            }
 
-            function (err) {
+            self._set(result, rule, function (err, value) {
                 if ( err ) {
                     return self._retry(rule, retry, callback);
                 }
-
-                async.waterfall(
-                    rule.setter.map(function (setter) {
-                        return function(v, done){
-                            // the first function of `async.waterfall` series
-                            if(arguments.length === 1){
-                                done = v;
-                                v = result;
-                            }
-                            setter.call(self._context, v, is_default, done);
-                        }
-                    }),
-
-                    function (err, value) {
-                        if ( err ) {
-                            return self._retry(rule, retry, callback);
-                        }
-                        // actual callback
-                        callback(null, value);
-                    }
-                );
-            }
-        );
+                // actual callback
+                callback(null, {
+                    rule: rule,
+                    value: value
+                });
+            });
+        });
     });
+};
+
+
+Asks.prototype._validate = function(value, rule, callback) {
+    var validators = rule.validator;
+
+    if(validators.length === 0){
+        return callback(null);
+    }
+
+    async.series(
+        validators.map(function (validator) {
+            return function (done) {
+                validator.call(self._context, value, is_default, done);
+            };
+        }),
+        callback
+    );
+};
+
+
+Asks.prototype._set = function(value, rule, callback) {
+    var setters = rule.setter;
+
+    if(setters.length === 0){
+        return callback(null, value);
+    }
+
+    async.waterfall(
+        setters.map(function (setter) {
+            return function(v, done){
+                // the first function of `async.waterfall` series
+                if(arguments.length === 1){
+                    done = v;
+                    v = value;
+                }
+                setter.call(self._context, v, is_default, done);
+            }
+        }),
+        callback
+    );
 };
 
 
@@ -290,8 +314,9 @@ Asks.prototype._retry = function(rule, retry, callback) {
 };
 
 
-Asks.prototype._parseRule = function(rule) {
-    rule.description = rule.description || rule._name;
+Asks.prototype._parseRule = function(name, rule) {
+    rule._name = name;
+    rule.description = rule.description || name;
 
     // undefined -> []
     rule.validator = this._parseValidators(rule.validator);
@@ -305,6 +330,9 @@ Asks.prototype._parseRule = function(rule) {
     // type
     if ( typeof rule.type === 'string' ) {
         rule.type = this._getType(rule.type);
+
+    }else if( Object(rule.type) !== rule.type ){
+        rule.type = {};
     }
 
     if ( rule.type.validator ) {
@@ -326,7 +354,11 @@ Asks.prototype._parseRule = function(rule) {
 // Create options for module `read`
 Asks.prototype._generateReadOptions = function (rule) {
     rule._read = {
-        prompt: typo.template(this.options.prompt_template, rule)
+        prompt: this.logger.template(this.options.prompt_template, rule),
+        silent: rule.hidden,
+        default: rule.default,
+        input: process.stdin,
+        output: process.stdout
     };
 };
 
@@ -415,7 +447,7 @@ Asks.prototype._result = function(result_array) {
     var ret = {};
 
     result_array.forEach(function(result) {
-        ret[result._name] = result.value;
+        ret[result.rule._name] = result.value;
     });
 
     return ret;
