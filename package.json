@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "async": "~0.2.9",
-    "read": "~1.0.5",
-    "loggie": "~0.1.10"
+    "loggie": "~0.1.10",
+    "mute-stream": "0.0.4"
   }
 }
