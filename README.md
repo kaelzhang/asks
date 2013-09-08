@@ -93,28 +93,93 @@ username: {
 
 ### Types and Setters
 
+#### Smart "boolean" default value
 
-### Schema Structures
+```js
+override: {
+	type: 'boolean',
+	default: 'Y(recommended)/n'
+}
+```
+If user input nothing, the `result.override` will be `true`.
+
+Those default value below will considered as `true`:
+
+```js
+// starts with 'y', 't' or '1' (case insensitive)
+'y' 'Yes' 'true' '1'
+
+// Contains uppercased 'Y' or 'T', but no uppercased 'N' nor 'F'
+'Yn' 'nY' 'n/Y'
+
+// The same case as 'N' or 'F', but 'Y' or 'T' comes ahead
+'YN' 'yn' 'y/n'
+
+// Otherwise `!!rule.default`
+'abc'
+```
+
+I thought I need NOT to tell about `false`.
+
+### Schema Structures, Programming Details
+
+```js
+{
+	<name>: <rule>
+}
+```
 
 
-Where `schema` might contains:
+Where `rule` might contains (all properties are optional):
 
-- validator: 
-	- `RegExp` The regular exp that input must matches against
-	- `Function` Validation function. If `arguments.length === 3`, it will be considered as an async methods
-	- `Array.<RegExp|Function>` Group of validations
-	- See sections above for details
-- type:
-	- `'string'`(default) 
-	- `'number'` The result will be converted to a number
-	- `'boolean'` If user input matches `/^yt1/i` (such as `'y'`, `'Yes'`, `'true'`), it will be converted to `true`, otherwise `false`; 
-- setter: `Function|Array` See sections above for details
-- message: `String`
-- required: `Boolean=`
-- hidden: `Boolean=`
-- default: `String`
-- description: `String` Description displayed to the user. If not specified name will be used.
-- retry: `Number` 
-	- `> 0` extra change(s) before 'error' event fires. 
-	- `0` means if you make a mistake, you fail; 
-	- `-1`(default) makes it no limit.
+##### validator 
+
+- `RegExp` The regular exp that input must matches against
+- `Function` Validation function. If `arguments.length === 3`, it will be considered as an async methods
+- `Array.<RegExp|Function>` Group of validations. Asks will check each validator one by one. If validation fails, the rest validators will be skipped.
+- See sections above for details
+	
+##### setter `Function|Array`
+
+See sections above for details.
+
+##### type `String|Object`
+
+- `'string'`(default) 
+- `'number'` The result will be converted to a number
+- `'boolean'` If user input matches `/^yt1/i` (such as `'y'`, `'Yes'`, `'true'`), it will be converted to `true`, otherwise `false`;
+- `'path'` will be `path.resolve()`d
+- `'url'` If user input is not a valid absolute url, it fails.
+- `Object` Custom type definition. `type.validator` will be pushed to the end of `validator`. `type.setter` will be pushed to the end of `setter`
+
+##### message `String`
+
+Default error message
+
+##### required: `Boolean=`
+
+##### hidden: `Boolean=`
+
+##### default: `String`
+
+##### description: `String`
+
+Description displayed to the user. If not specified name will be used.
+
+##### retry: `Number` 
+
+- `> 0` extra change(s) before 'error' event fires. 
+- `0` means if you make a mistake, you fail; 
+- `-1`(default) makes it no limit.
+	
+## Flow
+
+```
+-> User input, and press enter
+-> value || `rule.default` || ''
+-> check `rule.required`
+-> check `rule.validator`, `rule.type.validator`
+-> run `rule.setter`, `rule.type.setter`
+-> callback
+
+```
