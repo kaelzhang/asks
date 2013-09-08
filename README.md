@@ -1,10 +1,6 @@
 # Asks
 
-Asks is a wrapper for node.js read(1).
-
-## Installation
-
-	
+Asks is a node.js wrapper for read(1).
 	
 ## Usage
 
@@ -23,7 +19,8 @@ asks(options).get(schema, function(err, result){
 ### Validation, Error Messages
 
 #### Simple regular expression
-```
+
+```js
 asks(options).get({
 	username: {
 		validator: /^[a-z0-9_]+$/,
@@ -41,7 +38,7 @@ asks(options).get({
 
 #### Custom validation function
 
-```
+```js
 function validate_name (value, is_default){
 	if(is_default){
 		// If returns a string, the return value will be the error message.
@@ -67,7 +64,7 @@ asks(options).get({
 
 If the validation function has three parameters (i.e. `foo.length === 3`), it will be treated as an asynchronous validator.
 
-```
+```js
 function async_validate (value, is_default, done){
 	remote_check(value, function(err){
 		done(err)
@@ -85,7 +82,7 @@ asks(options).get({
 
 You can use those tree kinds of validators above together! Just put them in an array!
 
-```
+```js
 username: {
 	validator: [/^[a-z0-9_]+$/, validate_name, async_validate]
 }
