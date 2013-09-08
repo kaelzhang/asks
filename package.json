@@ -1,7 +1,7 @@
 {
   "name": "asks",
   "version": "0.1.1",
-  "description": "Asks is a wrapper for node.js stdin.",
+  "description": "Asks is a node.js wrapper for read(1).",
   "main": "index.js",
   "scripts": {
     "test": "mocha"
