@@ -8,7 +8,7 @@ asks.Asks = Asks;
 
 var async       = require('async');
 var read        = require('read');
-var typo        = require('typo');
+var loggie      = require('loggie');
 
 var node_util   = require('util');
 var node_path   = require('path');
@@ -42,14 +42,44 @@ function makeArray (subject) {
 
 
 var DEFAULT_OPTIONS = {
-    prompt_template : '{{gray description}}',
-    default_message : '{{name}}: invalid input', 
+    prompt_template : '[{{green ?}}] {{gray description}}',
+    default_message : 'Invalid input', 
     required_message: 'This field is required',
 
     // by default, if error, have only one change to recorrect
-    retry           : 1
+    retry           : -1
 };
 
+// 'yes', 'Y', 'true', '1' -> true
+var REGEX_YES = /^[yt]|1/i;
+
+var REGEX_CONTAINS_NO = /[nf0]/i;
+var REGEX_CONTAINS_YES = /[yt1]/i;
+var REGEX_EMPHASIZE_YES = /[YT]/;
+var REGEX_EMPHASIZE_NO = /[NF]/;
+
+function measure_boolean (v) {
+    var emphasize_yes = REGEX_EMPHASIZE_YES.test(v);
+    var emphasize_no = REGEX_EMPHASIZE_NO.test(v);
+    
+    if ( emphasize_yes ^ emphasize_no ) {
+        // 'y/N' -> false
+        // 'Y/n' -> true
+        return emphasize_yes;
+    } else {
+        // Contains neither 'Y' nor 'N' or
+        // contains 'Y' and 'N' simultaneously
+        return order_boolean(v);
+    }
+}
+
+function order_boolean (v) {
+    var exec_yes = REGEX_CONTAINS_YES.exec(v);
+    var exec_no = REGEX_CONTAINS_NO.exec(v);
+
+    // If 'y' comes first -> true
+    return exec_yes.index < exec_no.index;
+}
 
 var TYPES = {
     'string': {
@@ -66,7 +96,39 @@ var TYPES = {
 
     'boolean': {
         setter: function (v, is_default, done) {
-            done(null, !!v);
+            // true -> true
+            // 'y' -> true
+            if ( v !== !!v ) {
+                v = REGEX_YES.test(v);
+            }
+
+            done(null, v);
+        },
+
+        __default: function (v) {
+            // undefined -> false
+            // true -> true
+            // false -> false
+            if ( typeof v !== 'string' ) {
+                return !!v;
+            }
+
+            var contains_yes = REGEX_CONTAINS_YES.test(v);
+            var contains_no = REGEX_CONTAINS_NO.test(v);
+
+            if ( contains_yes & contains_no ) {
+                return measure_boolean(v);
+
+            // 'abcd' -> true
+            // '' -> false
+            } else if ( !contains_yes & !contains_no ) {
+                return !!v;
+
+            } else {
+                // 'yes' -> true
+                // 'no' -> false
+                return contains_yes;
+            }
         }
     },
 
@@ -96,7 +158,7 @@ function Asks(options){
     this.options = options = mix(options || {}, DEFAULT_OPTIONS, false);
     this._types = {};
     this._context = options.context || this;
-    this.logger = options.logger || typo();
+    this.logger = options.logger || loggie();
 };
 
 node_util.inherits(Asks, EE);
@@ -301,16 +363,22 @@ Asks.prototype._set = function(value, is_default, rule, callback) {
 
 Asks.prototype._retry = function(err, rule, retry, callback) {
     var self = this;
+    var data = {
+        err: err === true ?
+            this.logger.template(this.options.default_message, rule._ruin) :
+            err,
+        name: rule._name
+    };
 
     if ( retry -- ) {
-        self._emit('retry', err);
+        self._emit('retry', data);
         // give it another chance
         process.nextTick(function () {
             self._get(rule, retry, callback);
         });
 
     }else{
-        self._emit('error', err);
+        self._emit('error', data);
 
         // TODO: default error message
         return callback(err);
@@ -326,13 +394,9 @@ Asks.prototype._parseRule = function(name, rule) {
     rule.validator = this._parseValidators(rule.validator);
     rule.setter = this._parseSetters(rule.setter);
 
-    // required
-    if ( rule.required && !('default' in rule) ) {
-        rule.validator.unshift(required_validator);
-    }
-
     // type
     if ( typeof rule.type === 'string' ) {
+        rule._type = rule.type;
         rule.type = this._getType(rule.type);
 
     }else if( Object(rule.type) !== rule.type ){
@@ -347,20 +411,40 @@ Asks.prototype._parseRule = function(name, rule) {
         rule.setter.push(rule.type.setter);
     }
 
+    if ( 'default' in rule ) {
+        if ( rule.type.__default ) {
+            rule.default = rule.type.__default(rule.default);
+        }
+        
+    } else if (rule.required) {
+        rule.validator.unshift(required_validator);
+    }
+
     rule.retry = rule.retry || this.options.retry;
 
+    this._generateStringMembers(rule);
     this._generateReadOptions(rule);
 
     return rule;
 };
 
 
+Asks.prototype._generateStringMembers = function(rule) {
+    rule._ruin = {
+        description: rule.description,
+        default: rule.default,
+        name: rule._name,
+    };
+};
+
 // Create options for module `read`
 Asks.prototype._generateReadOptions = function (rule) {
     rule._read = {
-        prompt: this.logger.template(this.options.prompt_template, rule),
-        silent: rule.hidden,
+        prompt: this.logger.template(this.options.prompt_template, rule._ruin),
+        silent: !!rule.hidden,
         default: rule.default,
+
+        // TODO
         input: process.stdin,
         output: process.stdout
     };
@@ -373,7 +457,7 @@ Asks.prototype._getType = function(type) {
 
 
 function required_validator (v, is_default, done){
-    done(is_default ? true : null);
+    done(v === '' ? this.options.required_message : null);
 };
 
 
@@ -458,6 +542,36 @@ Asks.prototype._result = function(result_array) {
 };
 
 
-Asks.prototype._emit = function (type, data) {
+var DEFAULT_EVENTS = {
+    error: function (data) {
+        this.logger.error(data.err);
+    },
 
+    retry: function (data) {
+        this.logger.warn(data.err);
+    },
+
+    cancel: function () {
+        this.logger.info('\n');
+        this.logger.warn('Canceled by user.');
+    }
 };
+
+
+Asks.prototype._emit = function (type) {
+    if ( EE.listenerCount(this, type) === 0 ) {
+        var handler = DEFAULT_EVENTS[type];
+        var args;
+
+        if ( handler ) {
+            args = Array.prototype.slice.call(arguments);
+            args.shift();
+            handler.apply(this, args);
+        }
+    }else{
+        this.emit.apply(this, arguments);
+    }
+};
+
+
+
