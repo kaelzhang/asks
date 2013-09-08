@@ -1,6 +1,6 @@
 {
   "name": "asks",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Asks is a wrapper for node.js stdin.",
   "main": "index.js",
   "scripts": {
@@ -23,5 +23,12 @@
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/kaelzhang/asks/issues"
+  },
+  "devDependencies": {
+    "chai": "~1.7.2"
+  },
+  "dependencies": {
+    "async": "~0.2.9",
+    "read": "~1.0.5"
   }
 }
