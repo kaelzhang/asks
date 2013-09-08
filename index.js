@@ -6,10 +6,14 @@ var asks = module.exports = function(options) {
 
 asks.Asks = Asks;
 
-var async = require('async');
-var read = require('read');
-var typo = require('typo');
-var node_util = require('util');
+var async       = require('async');
+var read        = require('read');
+var typo        = require('typo');
+
+var node_util   = require('util');
+var node_path   = require('path');
+var node_url    = require('url');
+var EE          = require('events').EventEmitter;
 
 function mix (receiver, supplier, override){
     var key;
@@ -64,7 +68,22 @@ var TYPES = {
         setter: function (v, is_default, done) {
             done(null, !!v);
         }
-    }
+    },
+
+    'path': {
+        setter: function (v, is_default, done) {
+            done(null, node_path.resolve(v));
+        }
+    },
+
+    'url': {
+        validator: function (v, is_default, done) {
+            var valid = !!node_url.parse(v).host;
+            done(valid ? null : true);
+        }
+    },
+
+    _default: {}
 };
 
 
@@ -76,7 +95,10 @@ var TYPES = {
 function Asks(options){
     this.options = mix(options || {}, DEFAULT_OPTIONS, false);
     this._types = {};
+    this._context = options.context;
 };
+
+node_util.inherits(Asks, EE);
 
 // ## Schema Design
 
@@ -129,18 +151,18 @@ function Asks(options){
 Asks.prototype.get = function(schema, callback) {
     var self = this;
 
+    schema = this.parseSchema(schema);
+
     async.series(
-        Object.keys(schema).map(function(key) {
+        Object.keys(schema).filter(function (key) {
+            return key !== '_asks';
 
-            // create shadow copy
-            var rules = Object.create( schema[key] );
-            rules._name = key;
-
-            rules = self._parseRules(rules);
+        }).map(function(key) {
+            var rule = schema[key];
 
             return function(done) {
-                self._get(rules, done);
-            }; 
+                self._get(rule, retry, done);
+            };
         }),
 
         function(err, result_array) {
@@ -154,6 +176,32 @@ Asks.prototype.get = function(schema, callback) {
 };
 
 
+Asks.prototype.parseSchema = function(schema) {
+    // if the current schema is the parsed schema
+    if ( schema._asks ) {
+        return schema; 
+    }
+
+    if ( schema._asksSchema ) {
+        return schema._asksSchema;
+    }
+
+    var parsed = {
+            _asks: true
+        };
+    var name;
+
+    for(name in schema){
+        parsed[name] = this._parseRule(schema[name]);
+    }
+
+    // parse each rule and cache it
+    schema._asksSchema = parsed;
+
+    return parsed;
+};
+
+
 // string: {
 //     validator: function () {
 //         return true;
@@ -164,68 +212,127 @@ Asks.prototype.get = function(schema, callback) {
 //     }
 // }
 Asks.prototype.registerType = function (type, setting) {
-
+    this._types[type] = setting;
+    return this;
 };
 
 
-Asks.prototype._get = function(rules, callback) {
+// Private methods
+//////////////////////////////////////////////////////////////////////
+
+// Get a single value
+Asks.prototype._get = function(rule, retry, callback) {
     var self = this;
 
-    read(rules, function(err, result, is_default) {
-        if(!err){
-            err = !self._validate(result, rules.validator);
-
-            if(rules.required && !result){
-                err = {
-                    message: self.options.required_message
-                };
-            }
-        }
-
+    read(rule._read, function(err, result, is_default) {
         if(err){
-            var not_canceled = err.message !== 'canceled';
+            var cancel = err.message === 'canceled';
 
-            if(not_canceled){
-                typo.log( typo.template(err.message || rules.message || self.options.default_message, rules) );
+            if ( cancel ) {
+                return self._emit('cancel');
             }else{
-                typo.log('{{gray canceled...}}');
+                return self._retry(rule, retry, callback);
             }
-
-            if(not_canceled && rules.retry --){
-                return self._get(rules, callback);
-            }
-
-            return callback(err);
         }
 
-        rules.value = result;
-        rules.is_default = is_default;
+        async.series(
+            rule.validator.map(function (validator) {
+                return function (done) {
+                    validator.call(self._context, result, is_default, done);
+                };
+            }),
 
-        callback(null, rules);
+            function (err) {
+                if ( err ) {
+                    return self._retry(rule, retry, callback);
+                }
+
+                async.waterfall(
+                    rule.setter.map(function (setter) {
+                        return function(v, done){
+                            // the first function of `async.waterfall` series
+                            if(arguments.length === 1){
+                                done = v;
+                                v = result;
+                            }
+                            setter.call(self._context, v, is_default, done);
+                        }
+                    }),
+
+                    function (err, value) {
+                        if ( err ) {
+                            return self._retry(rule, retry, callback);
+                        }
+                        // actual callback
+                        callback(null, value);
+                    }
+                );
+            }
+        );
     });
+};
+
+
+Asks.prototype._retry = function(rule, retry, callback) {
+    var self = this;
+
+    if ( retry -- ) {
+        self._emit('retry');
+        // give it another chance
+        process.nextTick(function () {
+            self._get(rule, retry, callback);
+        });
+
+    }else{
+        // TODO: default error message
+        return callback(err);
+    }
 };
 
 
 Asks.prototype._parseRule = function(rule) {
     rule.description = rule.description || rule._name;
 
-    if(!rule.prompt){
-        rule.prompt = typo.template(this.options.prompt_template, rule);
-    }
-
     // undefined -> []
     rule.validator = this._parseValidators(rule.validator);
+    rule.setter = this._parseSetters(rule.setter);
 
-    if ( rule.required ) {
+    // required
+    if ( rule.required && !('default' in rule) ) {
         rule.validator.push(required_validator);
     }
 
+    // type
+    if ( typeof rule.type === 'string' ) {
+        rule.type = this._getType(rule.type);
+    }
 
+    if ( rule.type.validator ) {
+        rule.validator.push(rule.type.validator);
+    }
 
+    if ( rule.type.setter ) {
+        rule.setter.push(rule.type.setter);
+    }
 
     rule.retry = rule.retry || this.options.retry;
 
+    this._generateReadOptions(rule);
+
     return rule;
+};
+
+
+// Create options for module `read`
+Asks.prototype._generateReadOptions = function (rule) {
+    rule._read = {
+        prompt: typo.template(this.options.prompt_template, rule)
+    };
+};
+
+
+Asks.prototype._getType = function(type) {
+    return this._types[type] || TYPES[type] || TYPES._default;
 };
 
 
@@ -283,17 +390,38 @@ Asks.prototype._asynchronizeValidator = function(fn) {
 };
 
 
+Asks.prototype._parseSetters = function(setters) {
+    return makeArray(setters).map(function (setter) {
+        return this._wrapSetter(setter);
+
+    }, this).filter(Boolean);
+};
+
+
+Asks.prototype._wrapSetter = function(setter) {
+    if ( typeof setter === 'function' ) {
+        if ( setter.length === 3 ) {
+            return setter;
+        }else{
+            return function (v, is_default, done) {
+                done(null, setter.call(v, is_default));
+            };
+        }
+    }
+};
+
+
 Asks.prototype._result = function(result_array) {
     var ret = {};
 
     result_array.forEach(function(result) {
-        ret[result._name] = {
-            value: result.value,
-            is_default: result.is_default
-        };
+        ret[result._name] = result.value;
     });
 
     return ret;
 };
 
 
+Asks.prototype._emit = function () {
+    
+};
