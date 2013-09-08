@@ -94,7 +94,7 @@ username: {
 ### Types and Setters
 
 
-### Schema structure
+### Schema Structures
 
 
 Where `schema` might contains:
@@ -102,12 +102,12 @@ Where `schema` might contains:
 - validator: 
 	- `RegExp` The regular exp that input must matches against
 	- `Function` Validation function. If `arguments.length === 3`, it will be considered as an async methods
-	- `Array.<RegExp|Function>` The group of validations
+	- `Array.<RegExp|Function>` Group of validations
 	- See sections above for details
 - type:
-	- '`string`'(default) 
-	- '`number`' The result will be converted to a number
-	- '`boolean`' If user input matches `/^yt1/i` (such as '`y`', '`Yes`', '`true`'), it will be converted to `true`, otherwise `false`; 
+	- `'string'`(default) 
+	- `'number'` The result will be converted to a number
+	- `'boolean'` If user input matches `/^yt1/i` (such as `'y'`, `'Yes'`, `'true'`), it will be converted to `true`, otherwise `false`; 
 - setter: `Function|Array` See sections above for details
 - message: `String`
 - required: `Boolean=`
@@ -115,6 +115,6 @@ Where `schema` might contains:
 - default: `String`
 - description: `String` Description displayed to the user. If not specified name will be used.
 - retry: `Number` 
-	- `retry` extra change(s) before 'error' event fires. 
+	- `> 0` extra change(s) before 'error' event fires. 
 	- `0` means if you make a mistake, you fail; 
-	- `-1` makes it no limit.
+	- `-1`(default) makes it no limit.
