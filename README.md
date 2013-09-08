@@ -91,26 +91,37 @@ username: {
 }
 ```
 
-### Customize Output with Events
+### Customize Your Output with Events
 
-There are 3 event types:
+Unlike [prompt](https://npmjs.org/package/prompt), all output messages are implemented with events in `asks`.
 
+Customizing your output is simply straight forward, just as you wish !
+
+There are 4 event types:
+
+- `'prompt'` Before each prompt
 - `'retry'` If `asks` give you another chance
 - `'error'` If the validation fails or any error occurs
-- `'cancel'` If user press '^C'
+- `'cancel'` If user press `^C` 
 
-`asks` gives these 3 events default behaviors.
+`asks` gives these events default behaviors.
 
 To customize your own events, you need not to remove them, just add your own listeners.
 
 ```js
 require('colors');
 asks()
-.on('error', function(data){
-	console.log('Oooooops'.red + ': ' + data.err);
+.on('prompt', function(description, name){
+	// Change the message and delimiter as you wish !
+    process.stdout.write(name + '>' + description.gray);
+})
+.on('error', function(err, name){
+	console.log('Oooooops'.red + ': ' + err);
 })
 .get(schema, callback);
 ```
+
+If any error occurs, the default output will not be displayed, but the red `'Oooooops'` instead. XD
 
 
 ### Types and Setters
@@ -203,5 +214,4 @@ Description displayed to the user. If not specified name will be used.
 -> check `rule.validator`, `rule.type.validator`
 -> run `rule.setter`, `rule.type.setter`
 -> callback
-
 ```
