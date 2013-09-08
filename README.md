@@ -91,6 +91,28 @@ username: {
 }
 ```
 
+### Customize Output with Events
+
+There are 3 event types:
+
+- `'retry'` If `asks` give you another chance
+- `'error'` If the validation fails or any error occurs
+- `'cancel'` If user press '^C'
+
+`asks` gives these 3 events default behaviors.
+
+To customize your own events, you need not to remove them, just add your own listeners.
+
+```js
+require('colors');
+asks()
+.on('error', function(data){
+	console.log('Oooooops'.red + ': ' + data.err);
+})
+.get(schema, callback);
+```
+
+
 ### Types and Setters
 
 #### Smart "boolean" default value
@@ -103,7 +125,7 @@ override: {
 ```
 If user input nothing, the `result.override` will be `true`.
 
-Those default value below will considered as `true`:
+Default values below will be considered as `true`:
 
 ```js
 // starts with 'y', 't' or '1' (case insensitive)
