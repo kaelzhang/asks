@@ -95,7 +95,7 @@ username: {
 
 Unlike [prompt](https://npmjs.org/package/prompt), all output messages are implemented with events in `asks`.
 
-Customizing your output is simply straight forward, just as you wish !
+With `asks`, customizing your output is simply straight forward, just as you wish !
 
 There are 4 event types:
 
@@ -154,7 +154,58 @@ Default values below will be considered as `true`:
 
 I thought I need NOT to talk about `false`.
 
-### Schema Structures, Programming Details
+## Programmatical Details
+
+### Constructor Options
+
+All options are optional.
+
+```js
+asks(options)
+```
+
+##### skip `Object={}`
+
+Sometimes we want to skip some prompts and specify them on our own.
+
+```js
+asks({
+	// The data varies from time to time.
+	// {a: 1} for example
+	skip: readData()
+}).get({
+	a: {},
+	b: {}
+}, function(err, result){
+});
+
+// Then prompt of property 'a' will be skipped, and `result.a` will be `1`
+```
+
+##### output `Object=process.stdout`
+
+Writeable stream to write prompts and all events to. default to `process.stdout`
+
+If you want to write all data to `options.output`, you should use the built-in logger `this.logger` of `asks`.
+
+##### input `Object=process.stdin`
+
+Readable stream to get input data from. default to `process.stdin`
+
+
+##### retry `Number=-1`
+
+Default retry chances, default to `-1`
+
+##### default_message `String`
+
+Default error message
+
+##### required_message `String`
+
+Specially, the error message if user had no input for a required field.
+
+### Schema Structures 
 
 ```js
 {
