@@ -141,7 +141,7 @@ Default values below will be considered as `true`:
 'abc'
 ```
 
-I thought I need NOT to tell about `false`.
+I thought I need NOT to talk about `false`.
 
 ### Schema Structures, Programming Details
 
