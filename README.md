@@ -3,6 +3,9 @@
 Asks is a node.js wrapper for read(1).
 	
 ## Usage
+```sh
+npm install asks --save
+```
 
 ```js
 var asks = require('asks');
@@ -94,18 +97,24 @@ username: {
 ### Schema structure
 
 
-Where `schema` could be:
+Where `schema` might contains:
 
-```js
-<name>: {
-	validator: `RegExp|Function|Array`
-	type: `String|Object`
-	setter: `Function|Array`
-	message: `String`
-	required: `Boolean=`
-	hidden: `Boolean=`
-	default: `String`
-	description: 
-	retry: `Number`
-}
-```
+- validator: 
+	- `RegExp` The regular exp that input must matches against
+	- `Function` Validation function. If `arguments.length === 3`, it will be considered as an async methods
+	- `Array.<RegExp|Function>` The group of validations
+	- See sections above for details
+- type:
+	- '`string`'(default) 
+	- '`number`' The result will be converted to a number
+	- '`boolean`' If user input matches `/^yt1/i` (such as '`y`', '`Yes`', '`true`'), it will be converted to `true`, otherwise `false`; 
+- setter: `Function|Array` See sections above for details
+- message: `String`
+- required: `Boolean=`
+- hidden: `Boolean=`
+- default: `String`
+- description: `String` Description displayed to the user. If not specified name will be used.
+- retry: `Number` 
+	- `retry` extra change(s) before 'error' event fires. 
+	- `0` means if you make a mistake, you fail; 
+	- `-1` makes it no limit.
