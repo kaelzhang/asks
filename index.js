@@ -193,7 +193,7 @@ Asks.prototype.parseSchema = function(schema) {
     var name;
 
     for(name in schema){
-        parsed[name] = this._parseRule(name, schema[name]); console.log(parsed[name])
+        parsed[name] = this._parseRule(name, schema[name]);
     }
 
     // parse each rule and cache it
@@ -232,18 +232,18 @@ Asks.prototype._get = function(rule, retry, callback) {
             if ( cancel ) {
                 return self._emit('cancel');
             }else{
-                return self._retry(rule, retry, callback);
+                return self._retry(err, rule, retry, callback);
             }
         }
 
-        self._validate(result, rule, function (err) {
+        self._validate(result, is_default, rule, function (err) {
             if ( err ) {
-                return self._retry(rule, retry, callback);
+                return self._retry(err, rule, retry, callback);
             }
 
-            self._set(result, rule, function (err, value) {
+            self._set(result, is_default, rule, function (err, value) {
                 if ( err ) {
-                    return self._retry(rule, retry, callback);
+                    return self._retry(err, rule, retry, callback);
                 }
                 // actual callback
                 callback(null, {
@@ -256,8 +256,9 @@ Asks.prototype._get = function(rule, retry, callback) {
 };
 
 
-Asks.prototype._validate = function(value, rule, callback) {
+Asks.prototype._validate = function(value, is_default, rule, callback) {
     var validators = rule.validator;
+    var self = this;
 
     if(validators.length === 0){
         return callback(null);
@@ -274,8 +275,9 @@ Asks.prototype._validate = function(value, rule, callback) {
 };
 
 
-Asks.prototype._set = function(value, rule, callback) {
+Asks.prototype._set = function(value, is_default, rule, callback) {
     var setters = rule.setter;
+    var self = this;
 
     if(setters.length === 0){
         return callback(null, value);
@@ -297,17 +299,19 @@ Asks.prototype._set = function(value, rule, callback) {
 };
 
 
-Asks.prototype._retry = function(rule, retry, callback) {
+Asks.prototype._retry = function(err, rule, retry, callback) {
     var self = this;
 
     if ( retry -- ) {
-        self._emit('retry');
+        self._emit('retry', err);
         // give it another chance
         process.nextTick(function () {
             self._get(rule, retry, callback);
         });
 
     }else{
+        self._emit('error', err);
+
         // TODO: default error message
         return callback(err);
     }
@@ -324,7 +328,7 @@ Asks.prototype._parseRule = function(name, rule) {
 
     // required
     if ( rule.required && !('default' in rule) ) {
-        rule.validator.push(required_validator);
+        rule.validator.unshift(required_validator);
     }
 
     // type
@@ -436,7 +440,7 @@ Asks.prototype._wrapSetter = function(setter) {
             return setter;
         }else{
             return function (v, is_default, done) {
-                done(null, setter.call(v, is_default));
+                done(null, setter.call(this, v, is_default));
             };
         }
     }
@@ -454,6 +458,6 @@ Asks.prototype._result = function(result_array) {
 };
 
 
-Asks.prototype._emit = function () {
-    
+Asks.prototype._emit = function (type, data) {
+
 };
