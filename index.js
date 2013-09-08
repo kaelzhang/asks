@@ -160,6 +160,7 @@ function Asks(options){
     this._types = {};
     this._context = options.context || this;
     this.logger = options.logger || loggie(options);
+    this._skip = options.skip || {};
 };
 
 node_util.inherits(Asks, EE);
@@ -287,6 +288,14 @@ Asks.prototype.registerType = function (type, setting) {
 // Get a single value
 Asks.prototype._get = function(rule, retry, callback) {
     var self = this;
+    var name = rule._name;
+
+    if ( name in this._skip ) {
+        return callback(null, {
+            rule: rule,
+            value: this._skip[name]
+        });
+    }
 
     this._emit('prompt', rule.description, rule._name);
 
