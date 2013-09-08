@@ -28,7 +28,7 @@ asks(options).get({
 		message: 'Username can only contains lowercase letters, numbers and underscore.'
 	},
 	password: {
-		validator: //
+		validator: /^[a-z0-9]$/i
 	}
 }, function(err, result){
 	console.log('The name is', result.username);
