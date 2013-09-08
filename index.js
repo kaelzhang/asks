@@ -7,7 +7,7 @@ var asks = module.exports = function(options) {
 asks.Asks = Asks;
 
 var async       = require('async');
-var read        = require('read');
+var read        = require('./lib/read');
 var loggie      = require('loggie');
 
 var node_util   = require('util');
@@ -42,12 +42,13 @@ function makeArray (subject) {
 
 
 var DEFAULT_OPTIONS = {
-    prompt_template : '[{{green ?}}] {{gray description}}',
     default_message : 'Invalid input', 
     required_message: 'This field is required',
 
     // by default, if error, have only one change to recorrect
-    retry           : -1
+    retry           : -1,
+    output          : process.stdout,
+    input           : process.stdin
 };
 
 // 'yes', 'Y', 'true', '1' -> true
@@ -158,7 +159,7 @@ function Asks(options){
     this.options = options = mix(options || {}, DEFAULT_OPTIONS, false);
     this._types = {};
     this._context = options.context || this;
-    this.logger = options.logger || loggie();
+    this.logger = options.logger || loggie(options);
 };
 
 node_util.inherits(Asks, EE);
@@ -287,6 +288,8 @@ Asks.prototype.registerType = function (type, setting) {
 Asks.prototype._get = function(rule, retry, callback) {
     var self = this;
 
+    this._emit('prompt', rule.description, rule._name);
+
     read(rule._read, function(err, result, is_default) {
         if(err){
             var cancel = err.message === 'canceled';
@@ -363,22 +366,21 @@ Asks.prototype._set = function(value, is_default, rule, callback) {
 
 Asks.prototype._retry = function(err, rule, retry, callback) {
     var self = this;
-    var data = {
-        err: err === true ?
-            this.logger.template(this.options.default_message, rule._ruin) :
-            err,
-        name: rule._name
-    };
+    var name = rule._name;
+
+    if ( err === true ) {
+        err = this.logger.template(rule.message, rule._ruin);
+    }
 
     if ( retry -- ) {
-        self._emit('retry', data);
+        self._emit('retry', err, name);
         // give it another chance
         process.nextTick(function () {
             self._get(rule, retry, callback);
         });
 
     }else{
-        self._emit('error', data);
+        self._emit('error', err, name);
 
         // TODO: default error message
         return callback(err);
@@ -389,6 +391,7 @@ Asks.prototype._retry = function(err, rule, retry, callback) {
 Asks.prototype._parseRule = function(name, rule) {
     rule._name = name;
     rule.description = rule.description || name;
+    rule.message = rule.message || this.options.default_message;
 
     // undefined -> []
     rule.validator = this._parseValidators(rule.validator);
@@ -440,13 +443,15 @@ Asks.prototype._generateStringMembers = function(rule) {
 // Create options for module `read`
 Asks.prototype._generateReadOptions = function (rule) {
     rule._read = {
-        prompt: this.logger.template(this.options.prompt_template, rule._ruin),
+        edit: true,
+        prompt: '', // this.logger.template(this.options.prompt_template, rule._ruin),
         silent: !!rule.hidden,
         default: rule.default,
 
-        // TODO
-        input: process.stdin,
-        output: process.stdout
+        // So that `read` will not clean the current line
+        terminal: false,
+        input: rule.input || this.options.input,
+        output: rule.output || this.options.output
     };
 };
 
@@ -543,12 +548,20 @@ Asks.prototype._result = function(result_array) {
 
 
 var DEFAULT_EVENTS = {
-    error: function (data) {
-        this.logger.error(data.err);
+    prompt: function (description, name) {
+        this.logger.info.ln(
+            this.logger.template('[{{green ?}}] {{gray description}}', {
+                description: description
+            })
+        );
     },
 
-    retry: function (data) {
-        this.logger.warn(data.err);
+    error: function (err, name) {
+        this.logger.error(err);
+    },
+
+    retry: function (err, name) {
+        this.logger.warn(err);
     },
 
     cancel: function () {
