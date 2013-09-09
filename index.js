@@ -566,11 +566,11 @@ var DEFAULT_EVENTS = {
     },
 
     error: function (err, name) {
-        this.logger.error(err);
+        this.logger.info('{{red Error}}:', err);
     },
 
     retry: function (err, name) {
-        this.logger.warn(err);
+        this.logger.info('{{red Error}}:', err);
     },
 
     cancel: function () {
