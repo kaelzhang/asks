@@ -1,6 +1,6 @@
 {
   "name": "asks",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Asks is a node.js wrapper for read(1).",
   "main": "index.js",
   "scripts": {

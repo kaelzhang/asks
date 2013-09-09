@@ -453,7 +453,6 @@ Asks.prototype._generateStringMembers = function(rule) {
 // Create options for module `read`
 Asks.prototype._generateReadOptions = function (rule) {
     rule._read = {
-        edit: true,
         prompt: '', // this.logger.template(this.options.prompt_template, rule._ruin),
         silent: !!rule.hidden,
         default: rule.default,
