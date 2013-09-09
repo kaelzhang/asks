@@ -291,6 +291,7 @@ Asks.prototype._get = function(rule, retry, callback) {
     var name = rule._name;
 
     if ( name in this._skip ) {
+        this._emit('skip', name, this._skip[name]);
         return callback(null, {
             rule: rule,
             value: this._skip[name]
