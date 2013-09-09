@@ -99,10 +99,11 @@ With `asks`, customizing your output is simply straight forward, just as you wis
 
 There are 4 event types:
 
-- `'prompt'` Before each prompt
-- `'retry'` If `asks` give you another chance
-- `'error'` If the validation fails or any error occurs
-- `'cancel'` If user press `^C` 
+- `'prompt'` Before each prompt.
+- `'skip'` When a property is skipped.
+- `'retry'` If `asks` give you another chance.
+- `'error'` If the validation fails or any error occurs.
+- `'cancel'` If user press `^C`.
 
 `asks` gives these events default behaviors.
 
